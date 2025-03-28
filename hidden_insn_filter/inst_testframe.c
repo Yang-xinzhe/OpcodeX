@@ -95,7 +95,7 @@ int main() {
         char line[256];
         while(fgets(line, sizeof(line), undefined_res) != NULL&& range_count < MAX_RANGES) {
             uint32_t start, end;
-            if(sscanf(line, "[%d, %d]", &start, &end) == 2) {
+            if(sscanf(line, "[%u, %u]", &start, &end) == 2) {
                 range[range_count].start = start;
                 range[range_count].end = end;
                 range[range_count].status = 0; // unprocessed
