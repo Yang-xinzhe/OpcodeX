@@ -5,7 +5,7 @@
 #include <sys/shm.h>
 #include <sys/mman.h> 
 #include <string.h>
-typedef  struct {
+typedef __attribute__((aligned(4))) struct {
     uint32_t r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12;
     uint32_t sp, lr, pc;
     uint32_t cpsr;
@@ -16,55 +16,66 @@ extern char insn_test_plate_begin, insn_test_plate_end, insn_location;
 uint32_t insn_offset;
 extern char insn_test_plate_begin, insn_test_plate_end, insn_location;
 
-void test_instruction()
+void test_instruction(void) __attribute__((optimize("O0")));
+
+void test_instruction(void)
 {
 
     asm volatile(
         ".global insn_test_plate_begin \n"
-        "insn_test_plate_begin:"
+        "insn_test_plate_begin:\n"
 
-        "push {r0, r1, r12} \n"
-        "ldr r12, =0x60000000 \n"
-        "stmia r12, {r0-r11} \n"
-        "mov r0, r12 \n"
-        "pop {r12} \n"
-        "str r12, [r0, #48] \n"
-        "str sp, [r0, #52] \n"
-        "str lr, [r0, #56] \n"
-        "mrs r1, cpsr \n"
-        "str r1, [r0, #64] \n"
-        "str pc, [r0, #60] \n"
-        "pop {r0, r1} \n"
+        "push {r0-r10, r12, lr} \n"
+        "ldr r0, =0x60000000   \n"
+
+        "add r1, sp, #4        \n"
+        "ldmia r1!, {r2-r10, r12, lr} \n"
+        "add r1, r0, #4        \n"
+        "stmia r1!, {r2-r10, r12, lr} \n"
+
+        "ldr r1, [sp, #0]      \n"
+        "str r1, [r0, #0]      \n"
+
+        "mrs r1, cpsr          \n"
+        "str r1, [r0, #64]     \n"
+        "mov r1, sp            \n"
+        "add r1, r1, #52       \n"
+        "str r1, [r0, #52]     \n"
+        "str pc, [r0, #60]     \n"
+        "pop {r0-r10, r12, lr} \n"
+
         ".global insn_location \n"
         "insn_location: \n"
         "nop \n"
 
-        "push {r0, r1, r12} \n"
-        "ldr r12, =0x60000000 \n"
-        "add r12, r12, #68 \n"
-        "str pc, [r12, #60] \n"
-        "stmia r12, {r0-r11} \n"
-        "mov r0, r12 \n"
-        "pop {r12} \n"
-        "str r12, [r0, #48] \n"
-        "str sp, [r0, #52] \n"
-        "str lr, [r0, #56] \n"
-        
-        "mrs r1, cpsr \n"
-        "str r1, [r0, #64] \n"
-        "pop {r0, r1} \n"
-       
-        "bx lr \n" 
+        "push {r0-r10, r12, lr} \n"
+        "ldr r0, =0x60000000   \n"
+        "add r0, r0, #68       \n"
+
+        "str pc, [r0, #60]     \n"
+        "add r1, sp, #4        \n"
+        "ldmia r1!, {r2-r10, r12, lr} \n"
+        "add r1, r0, #4        \n"
+        "stmia r1!, {r2-r10, r12, lr} \n"
+
+        "ldr r1, [sp, #0]      \n"
+        "str r1, [r0, #0]      \n"
+
+        "mrs r1, cpsr          \n"
+        "str r1, [r0, #64]     \n"
+        "mov r1, sp            \n"
+        "add r1, r1, #52       \n"
+        "str r1, [r0, #52]     \n"
+        "pop {r0-r10, r12, lr} \n"
+
+        "bx lr \n"
 
         ".global insn_test_plate_end \n"
         "insn_test_plate_end: \n"
         :
         :
-        : "r0", "r1", "r12", "r3", "r4", "memory", "cc"
-    );
+        : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r12", "lr", "memory", "cc");
 }
-
-
 
 int init_insn_page(void) {
     insn_page = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
