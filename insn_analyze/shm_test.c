@@ -15,58 +15,77 @@ void* insn_page;
 extern char insn_test_plate_begin, insn_test_plate_end, insn_location;
 uint32_t insn_offset;
 extern char insn_test_plate_begin, insn_test_plate_end, insn_location;
+uint32_t insn_test_plate_length;
 
 void test_instruction(void) __attribute__((optimize("O0")));
 
 void test_instruction(void)
 {
-
     asm volatile(
         ".global insn_test_plate_begin \n"
         "insn_test_plate_begin:\n"
 
-        "push {r0-r10, r12, lr} \n"
+        "push {r0-r12, lr} \n"
         "ldr r0, =0x60000000   \n"
 
-        "add r1, sp, #4        \n"
-        "ldmia r1!, {r2-r10, r12, lr} \n"
-        "add r1, r0, #4        \n"
-        "stmia r1!, {r2-r10, r12, lr} \n"
-
-        "ldr r1, [sp, #0]      \n"
-        "str r1, [r0, #0]      \n"
+        // 修复：正确加载栈上的寄存器值
+        "ldr r1, [sp, #4]      \n"    // 加载原始 r1
+        "str r1, [r0, #4]      \n"    // 存到目标 r1 位置
+        
+        "add r1, sp, #8        \n"    // 指向栈上 r2
+        "add r2, r0, #8        \n"    // 指向目标 r2 位置
+        "ldmia r1!, {r3-r12}   \n"    // 加载 r3-r12
+        "stmia r2!, {r3-r12}   \n"    // 存储 r3-r12
+        
+        "ldr r1, [sp, #52]     \n"    // 加载 lr
+        "str r1, [r0, #56]     \n"    // 存到目标 lr 位置
+        
+        "ldr r1, [sp, #0]      \n"    // 加载原始 r0
+        "str r1, [r0, #0]      \n"    // 存到目标 r0 位置
 
         "mrs r1, cpsr          \n"
-        "str r1, [r0, #64]     \n"
+        "str r1, [r0, #64]     \n"    // 存储 CPSR
+        
         "mov r1, sp            \n"
-        "add r1, r1, #52       \n"
-        "str r1, [r0, #52]     \n"
-        "str pc, [r0, #60]     \n"
-        "pop {r0-r10, r12, lr} \n"
+        "add r1, r1, #56       \n"    // 恢复原始 SP（14个寄存器*4）
+        "str r1, [r0, #52]     \n"    // 存储 SP
+        
+        "str pc, [r0, #60]     \n"    // 存储 PC
+        "pop {r0-r12, lr}      \n"
 
         ".global insn_location \n"
         "insn_location: \n"
         "nop \n"
 
-        "push {r0-r10, r12, lr} \n"
+        // 第二部分：执行后保存
+        "push {r0-r12, lr} \n"
         "ldr r0, =0x60000000   \n"
         "add r0, r0, #68       \n"
 
-        "str pc, [r0, #60]     \n"
-        "add r1, sp, #4        \n"
-        "ldmia r1!, {r2-r10, r12, lr} \n"
-        "add r1, r0, #4        \n"
-        "stmia r1!, {r2-r10, r12, lr} \n"
-
+        // 修复：先保存其他寄存器，最后保存PC
+        "ldr r1, [sp, #4]      \n"
+        "str r1, [r0, #4]      \n"
+        
+        "add r1, sp, #8        \n"
+        "add r2, r0, #8        \n"
+        "ldmia r1!, {r3-r12}   \n"
+        "stmia r2!, {r3-r12}   \n"
+        
+        "ldr r1, [sp, #52]     \n"
+        "str r1, [r0, #56]     \n"
+        
         "ldr r1, [sp, #0]      \n"
         "str r1, [r0, #0]      \n"
 
         "mrs r1, cpsr          \n"
         "str r1, [r0, #64]     \n"
+        
         "mov r1, sp            \n"
-        "add r1, r1, #52       \n"
+        "add r1, r1, #56       \n"
         "str r1, [r0, #52]     \n"
-        "pop {r0-r10, r12, lr} \n"
+        
+        "str pc, [r0, #60]     \n"    // 最后保存 PC
+        "pop {r0-r12, lr} \n"
 
         "bx lr \n"
 
@@ -75,6 +94,7 @@ void test_instruction(void)
         :
         :
         : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r12", "lr", "memory", "cc");
+        // 注意：移除了 r11
 }
 
 int init_insn_page(void) {
@@ -84,18 +104,18 @@ int init_insn_page(void) {
         return 1;
     }
 
-    uint32_t insn_test_plate_length = (&insn_test_plate_end - &insn_test_plate_begin);
+    insn_test_plate_length = (&insn_test_plate_end - &insn_test_plate_begin);
     printf("Debug: template length = %d bytes\n", insn_test_plate_length);
     memcpy(insn_page, &insn_test_plate_begin, insn_test_plate_length);
 
-    printf("\nCopied instructions in insn_page:\n");
-    uint32_t *dest = (uint32_t*)insn_page;
-    for(int i = 0; i < insn_test_plate_length/4; i++) {
-        printf("%03d: 0x%08x\n", i, dest[i]);
-    }
+    // printf("\nCopied instructions in insn_page:\n");
+    // uint32_t *dest = (uint32_t*)insn_page;
+    // for(int i = 0; i < insn_test_plate_length/4; i++) {
+    //     printf("%03d: 0x%08x\n", i, dest[i]);
+    // }
 
     insn_offset = (&insn_location - &insn_test_plate_begin) / 4;
-    printf("insn_offset = %d\n", insn_offset);
+    // printf("insn_offset = %d\n", insn_offset);
     return 0;
 }
 
@@ -125,7 +145,7 @@ size_t fill_insn_buffer(uint8_t *buf, size_t buf_size, uint32_t insn)
 }
 
 int main(int argc, const char* argv[]) {
-    uint32_t hidden_instruction = 0xe1a00001;
+    uint32_t hidden_instruction = 0xE3A03055;
     uint8_t insn_bytes[4];
 
 
